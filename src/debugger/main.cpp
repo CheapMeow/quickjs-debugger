@@ -31,6 +31,24 @@ static void dump_error(JSContext* ctx)
     JS_FreeValue(ctx, exception);
 }
 
+static void print_variables(JSContext* ctx, int frameCount)
+{
+    for (int fi = 0; fi < frameCount && fi < 3; fi++)
+    {
+        auto vars = GetFrameVariables(ctx, fi);
+
+        if (vars.empty())
+            continue;
+
+        std::cout << "  Frame #" << fi << " variables (" << vars.size() << "):" << std::endl;
+
+        for (const auto& v : vars)
+        {
+            std::cout << "    " << v.name << " = " << v.value << std::endl;
+        }
+    }
+}
+
 int main()
 {
     JSRuntime* rt = JS_NewRuntime();
@@ -99,6 +117,8 @@ run();
                       << frames[i].line << ":"
                       << frames[i].column << std::endl;
         }
+
+        print_variables(ctx, (int)frames.size());
     }
 
     debugger.ClearBreakpoints();
@@ -151,6 +171,8 @@ run();
                       << frames[i].line << ":"
                       << frames[i].column << std::endl;
         }
+
+        print_variables(ctx, (int)frames.size());
     }
 
     debugger.Resume();
@@ -167,6 +189,11 @@ run();
         const char* script = R"(
 function baz()
 {
+    let msg = "hello";
+    let count = 42;
+    let flag = true;
+    let obj = {};
+    let nothing = null;
     throw new Error("test exception from baz");
 }
 function bar()
@@ -201,6 +228,8 @@ bar();
                       << frames[i].line << ":"
                       << frames[i].column << std::endl;
         }
+
+        print_variables(ctx, (int)frames.size());
     }
 
     std::cout << "\nResuming (exception will propagate)..." << std::endl;
@@ -208,6 +237,67 @@ bar();
     debugger.Resume();
 
     t3.join();
+
+    // ---- Phase 1.5: variables demo ----
+
+    std::cout << "\n========== PHASE 1.5: VARIABLE INSPECTION ==========" << std::endl;
+
+    std::thread t4([&]() {
+        const char* script = R"(
+function compute(a, b)
+{
+    let sum = a + b;
+    let product = a * b;
+    let msg = "done";
+    let flag = true;
+    let obj = { x: 10, y: 20 };
+    let arr = [1, 2, 3];
+    let n = 0;
+    while (n < 1000000)
+        n = n + 1;
+    return sum;
+}
+compute(3, 4);
+)";
+        JSValue result = Eval(ctx, script, "vars.js");
+
+        if (JS_IsException(result))
+            dump_error(ctx);
+
+        JS_FreeValue(ctx, result);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    debugger.RequestPause();
+
+    std::cout << "Waiting for pause..." << std::endl;
+
+    debugger.WaitUntilPaused();
+
+    {
+        auto frames = debugger.GetStackFrames();
+
+        std::cout << "\n=== BREAKPOINT HIT (variable demo) ===" << std::endl;
+        std::cout << "Stack frames (" << frames.size() << " total):" << std::endl;
+
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            std::cout << "  #" << i << " "
+                      << frames[i].functionName << "() at "
+                      << frames[i].filename << ":"
+                      << frames[i].line << ":"
+                      << frames[i].column << std::endl;
+        }
+
+        print_variables(ctx, (int)frames.size());
+    }
+
+    debugger.Resume();
+
+    t4.join();
+
+    // ---- cleanup ----
 
     std::cout << "\n========== ALL DONE ==========" << std::endl;
 

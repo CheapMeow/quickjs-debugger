@@ -89,3 +89,77 @@ void InstallQuickJSDebugger(JSRuntime* rt, JSContext* ctx, Debugger* debugger)
 
     JS_SetExceptionHandler(rt, exception_handler, debugger);
 }
+
+static std::string value_to_string(JSContext* ctx, JSValueConst val)
+{
+    if (JS_IsUndefined(val))
+        return "undefined";
+
+    if (JS_IsNull(val))
+        return "null";
+
+    if (JS_IsBool(val))
+        return JS_VALUE_GET_BOOL(val) ? "true" : "false";
+
+    if (JS_IsNumber(val))
+    {
+        double d;
+        JS_ToFloat64(ctx, &d, val);
+
+        return std::to_string(d);
+    }
+
+    if (JS_IsString(val))
+    {
+        const char* s = JS_ToCString(ctx, val);
+
+        std::string result = s ? s : "";
+
+        JS_FreeCString(ctx, s);
+
+        return "\"" + result + "\"";
+    }
+
+    if (JS_IsObject(val))
+    {
+        if (JS_IsFunction(ctx, val))
+            return "[Function]";
+
+        if (JS_IsArray(val))
+            return "[Array]";
+
+        return "[Object]";
+    }
+
+    if (JS_IsSymbol(val))
+        return "[Symbol]";
+
+    return "[unknown]";
+}
+
+std::vector<Variable> GetFrameVariables(JSContext* ctx, int frameIndex)
+{
+    std::vector<Variable> vars;
+
+    JSDebugVariable raw[256];
+    int count = JS_GetFrameVariables(ctx, frameIndex, raw, 256);
+
+    vars.reserve(count);
+
+    for (int i = 0; i < count; i++)
+    {
+        Variable v;
+
+        const char* s = JS_AtomToCString(ctx, raw[i].name);
+
+        v.name = s ? s : "?";
+
+        JS_FreeCString(ctx, s);
+
+        v.value = value_to_string(ctx, raw[i].value);
+
+        vars.push_back(std::move(v));
+    }
+
+    return vars;
+}
