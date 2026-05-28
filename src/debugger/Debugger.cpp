@@ -25,7 +25,7 @@ bool Debugger::ShouldPause() const
     return m_pauseRequested.load();
 }
 
-void Debugger::SuspendVM(const JSLocation& location)
+void Debugger::SuspendVM(const BreakPointLocation& location)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -43,7 +43,7 @@ void Debugger::SuspendVM(const JSLocation& location)
     std::cout << "\n=== JS VM RESUMED ===\n";
 }
 
-JSLocation Debugger::GetCurrentLocation() const
+BreakPointLocation Debugger::GetCurrentLocation() const
 {
     std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(m_mutex));
 

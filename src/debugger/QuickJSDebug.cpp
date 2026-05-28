@@ -25,7 +25,7 @@ static int interrupt_handler(JSRuntime* rt, void* opaque)
 
     JSDebugLocation raw = {};
 
-    JSLocation location;
+    BreakPointLocation location;
 
     if (JS_GetCurrentLocation(g_ctx, &raw))
     {

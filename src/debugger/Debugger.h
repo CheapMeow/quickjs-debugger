@@ -5,7 +5,7 @@
 #include <mutex>
 #include <string>
 
-struct JSLocation
+struct BreakPointLocation
 {
     std::string filename;
     int line = -1;
@@ -21,9 +21,9 @@ public:
 
     bool ShouldPause() const;
 
-    void SuspendVM(const JSLocation& location);
+    void SuspendVM(const BreakPointLocation& location);
 
-    JSLocation GetCurrentLocation() const;
+    BreakPointLocation GetCurrentLocation() const;
 
 private:
     std::atomic<bool> m_pauseRequested = false;
@@ -34,5 +34,5 @@ private:
 
     bool m_paused = false;
 
-    JSLocation m_currentLocation;
+    BreakPointLocation m_currentLocation;
 };
