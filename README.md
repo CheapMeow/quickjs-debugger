@@ -1,3 +1,41 @@
+## 动机
+
+我现在有一个使用 quickjs-ng 的 cpp 项目，用来执行 js 脚本。
+
+我使用 Rider 调试 cpp 项目。我希望我也可以用 Rider 调试这个项目的 js 脚本。
+
+具体而言，我给 cpp 文件或者 js 脚本添加断点，然后我启动 cpp 项目，我希望断点可以在 cpp 和 js 被击中的时候，IDE 都能响应断点，显示对应的堆栈和变量。
+
+在 cpp 或者 js 脚本出现错误的时候，IDE 也能中断在出错的地方。
+
+Rider 原生支持 cpp 的调试，但是 quickjs 本质上只是 c 写的 VM，我不知道怎么实现 IDE 对 js 的调试。
+
+查过之后有两个相关的东西，DAP 和 Chrome DevTools Protocol（CDP）。看上去 DAP 更简单，于是先实现这个
+
+## 其他人的工作
+
+看到一个人的实现过 quickjs 的 DAP 协议
+
+[https://github.com/koush/vscode-quickjs-debug](https://github.com/koush/vscode-quickjs-debug)
+
+但是这是五年前了，我感觉我可以自己写一个
+
+## 配置
+
+使用 Ninja 构建，可以生成 compile_commands.json。MSVC 无法生成之。
+
+```shell
+cmake -S . -B build-clangd/ -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+```
+
+创建软链接，使得 clangd 插件可以识别到 compile_commands。需要管理员权限。
+
+```bat
+cmd /c mklink .\compile_commands.json build-clangd\compile_commands.json
+```
+
+## 规划
+
 quickjs 的虚拟机中，代码被翻译为字节码。
 
 执行一段字节码之后，会触发中断检查。此时可以通过 quickjs 公开的接口 `JS_SetInterruptHandler` 注入回调。

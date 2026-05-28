@@ -4,12 +4,15 @@
 #include <condition_variable>
 #include <mutex>
 #include <string>
+#include <vector>
 
-struct BreakPointLocation
+struct StackFrame
 {
     std::string filename;
+    std::string functionName;
     int line = -1;
     int column = -1;
+    uint32_t pc = 0;
 };
 
 class Debugger
@@ -21,12 +24,14 @@ public:
 
     bool ShouldPause() const;
 
-    void SuspendVM(const BreakPointLocation& location);
+    void SuspendVM(const std::vector<StackFrame>& frames);
 
-    BreakPointLocation GetCurrentLocation() const;
+    std::vector<StackFrame> GetStackFrames() const;
+
+    StackFrame GetCurrentFrame() const;
 
 private:
-    std::atomic<bool> m_pauseRequested = false;
+    std::atomic<bool> m_pauseRequested{false};
 
     std::mutex m_mutex;
 
@@ -34,5 +39,5 @@ private:
 
     bool m_paused = false;
 
-    BreakPointLocation m_currentLocation;
+    std::vector<StackFrame> m_stackFrames;
 };

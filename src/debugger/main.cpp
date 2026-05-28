@@ -90,12 +90,18 @@ bar();
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    BreakPointLocation loc = debugger.GetCurrentLocation();
+    auto frames = debugger.GetStackFrames();
 
-    std::cout << "\nPaused at: "
-              << loc.filename << ":"
-              << loc.line << ":"
-              << loc.column << "\n";
+    std::cout << "\n=== STACK FRAMES (" << frames.size() << " total) ===\n";
+
+    for (size_t i = 0; i < frames.size(); i++)
+    {
+        std::cout << "#" << i << " "
+                  << frames[i].functionName << "() at "
+                  << frames[i].filename << ":"
+                  << frames[i].line << ":"
+                  << frames[i].column << "\n";
+    }
 
     std::this_thread::sleep_for(std::chrono::seconds(5));
 

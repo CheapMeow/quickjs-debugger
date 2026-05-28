@@ -8,8 +8,6 @@ extern "C"
 #include "quickjs-debugger.h"
 }
 
-#include <iostream>
-
 static JSContext* g_ctx = nullptr;
 
 static int interrupt_handler(JSRuntime* rt, void* opaque)
@@ -21,32 +19,32 @@ static int interrupt_handler(JSRuntime* rt, void* opaque)
         return 0;
     }
 
-    std::cout << "\nInterrupt handler triggered\n";
+    JSDebugFrame raw[256];
+    int count = JS_GetStackFrames(g_ctx, raw, 256);
 
-    JSDebugLocation raw = {};
+    std::vector<StackFrame> frames;
+    frames.reserve(count);
 
-    BreakPointLocation location;
-
-    if (JS_GetCurrentLocation(g_ctx, &raw))
+    for (int i = 0; i < count; i++)
     {
-        const char* filename = JS_AtomToCString(g_ctx, raw.filename);
+        StackFrame frame;
 
-        location.filename = filename ? filename : "<unknown>";
-        location.line     = raw.line;
-        location.column   = raw.col;
+        const char* s = JS_AtomToCString(g_ctx, raw[i].filename);
+        frame.filename = s ? s : "<unknown>";
+        JS_FreeCString(g_ctx, s);
 
-        JS_FreeCString(g_ctx, filename);
+        s = JS_AtomToCString(g_ctx, raw[i].func_name);
+        frame.functionName = s ? s : "<anonymous>";
+        JS_FreeCString(g_ctx, s);
+
+        frame.line   = raw[i].line;
+        frame.column = raw[i].col;
+        frame.pc     = raw[i].pc;
+
+        frames.push_back(std::move(frame));
     }
-    else
-    {
-        location.filename = "<unknown>";
-        location.line     = -1;
-        location.column   = -1;
-    }
 
-    PrintJSStackTrace(g_ctx);
-
-    debugger->SuspendVM(location);
+    debugger->SuspendVM(frames);
 
     return 0;
 }
@@ -56,40 +54,4 @@ void InstallQuickJSDebugger(JSRuntime* rt, JSContext* ctx, Debugger* debugger)
     g_ctx = ctx;
 
     JS_SetInterruptHandler(rt, interrupt_handler, debugger);
-}
-
-void PrintJSStackTrace(JSContext* ctx)
-{
-    const char* code = R"(
-
-(function()
-{
-    const e = new Error();
-
-    return e.stack;
-
-})()
-
-)";
-
-    JSValue result = JS_Eval(ctx, code, strlen(code), "<stacktrace>", JS_EVAL_TYPE_GLOBAL);
-
-    if (JS_IsException(result))
-    {
-        std::cout << "Failed to get stacktrace\n";
-
-        return;
-    }
-
-    const char* str = JS_ToCString(ctx, result);
-
-    if (str)
-    {
-        std::cout << "\n=== JS STACKTRACE ===\n";
-        std::cout << str << "\n";
-
-        JS_FreeCString(ctx, str);
-    }
-
-    JS_FreeValue(ctx, result);
 }

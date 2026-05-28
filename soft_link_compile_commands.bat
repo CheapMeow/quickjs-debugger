@@ -1,1 +1,0 @@
-cmd /c mklink .\compile_commands.json build-clangd\compile_commands.json
