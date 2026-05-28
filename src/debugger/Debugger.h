@@ -3,6 +3,14 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <string>
+
+struct JSLocation
+{
+    std::string filename;
+    int line = -1;
+    int column = -1;
+};
 
 class Debugger
 {
@@ -13,7 +21,9 @@ public:
 
     bool ShouldPause() const;
 
-    void SuspendVM();
+    void SuspendVM(const JSLocation& location);
+
+    JSLocation GetCurrentLocation() const;
 
 private:
     std::atomic<bool> m_pauseRequested = false;
@@ -23,4 +33,6 @@ private:
     std::condition_variable m_cv;
 
     bool m_paused = false;
+
+    JSLocation m_currentLocation;
 };

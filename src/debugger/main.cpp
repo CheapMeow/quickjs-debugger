@@ -88,9 +88,18 @@ bar();
 
     debugger.RequestPause();
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    JSLocation loc = debugger.GetCurrentLocation();
+
+    std::cout << "\nPaused at: "
+              << loc.filename << ":"
+              << loc.line << ":"
+              << loc.column << "\n";
+
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
-    std::cout << "\nResuming VM...\n";
+    std::cout << "\nResuming VM..." << std::endl;
 
     debugger.Resume();
 

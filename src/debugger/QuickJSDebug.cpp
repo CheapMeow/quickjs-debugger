@@ -5,6 +5,7 @@
 extern "C"
 {
 #include "quickjs.h"
+#include "quickjs-debugger.h"
 }
 
 #include <iostream>
@@ -22,9 +23,30 @@ static int interrupt_handler(JSRuntime* rt, void* opaque)
 
     std::cout << "\nInterrupt handler triggered\n";
 
+    JSDebugLocation raw = {};
+
+    JSLocation location;
+
+    if (JS_GetCurrentLocation(g_ctx, &raw))
+    {
+        const char* filename = JS_AtomToCString(g_ctx, raw.filename);
+
+        location.filename = filename ? filename : "<unknown>";
+        location.line     = raw.line;
+        location.column   = raw.col;
+
+        JS_FreeCString(g_ctx, filename);
+    }
+    else
+    {
+        location.filename = "<unknown>";
+        location.line     = -1;
+        location.column   = -1;
+    }
+
     PrintJSStackTrace(g_ctx);
 
-    debugger->SuspendVM();
+    debugger->SuspendVM(location);
 
     return 0;
 }

@@ -36,6 +36,7 @@ bin/
 build/
 build-debug/
 build-release/
+build-clangd/
 .vscode/
 
 *.user
@@ -52,5 +53,9 @@ build-release/
 .xmake/
 vsxmake2022/
 
+.cache
+
 # imgui
 imgui.ini
+
+compile_commands.json
