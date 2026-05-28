@@ -58,6 +58,13 @@ static int interrupt_handler(JSRuntime* rt, void* opaque)
             {
                 shouldPause = debugger->ShouldBreak(filename, rawLoc.line);
 
+                if (!shouldPause)
+                {
+                    int depth = JS_GetFrameDepth(g_ctx);
+
+                    shouldPause = debugger->ShouldStep(filename, rawLoc.line, rawLoc.pc, depth);
+                }
+
                 JS_FreeCString(g_ctx, filename);
             }
         }

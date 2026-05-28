@@ -297,6 +297,97 @@ compute(3, 4);
 
     t4.join();
 
+    // ---- Phase 1.6: stepping demo ----
+
+    std::cout << "\n========== PHASE 1.6: STEPPING ==========" << std::endl;
+
+    debugger.AddBreakpoint("step.js", 9);
+
+    std::thread t5([&]() {
+        const char* script = R"(
+function helper()
+{
+    let x = 1;
+    let y = 2;
+    let z = x + y;
+    let n = 0;
+    while (n < 500000)
+        n = n + 1;
+}
+function main()
+{
+    helper();
+    let done = 1;
+    let n = 0;
+    while (n < 5000000)
+        n = n + 1;
+}
+main();
+)";
+        JSValue result = Eval(ctx, script, "step.js");
+
+        if (JS_IsException(result))
+            dump_error(ctx);
+
+        JS_FreeValue(ctx, result);
+    });
+
+    std::cout << "Waiting for breakpoint inside helper()..." << std::endl;
+
+    debugger.WaitUntilPaused();
+
+    {
+        auto frames = debugger.GetStackFrames();
+
+        std::cout << "\n=== PAUSED IN helper() ===" << std::endl;
+        std::cout << "Stack frames (" << frames.size() << " total):" << std::endl;
+
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            std::cout << "  #" << i << " "
+                      << frames[i].functionName << "() at "
+                      << frames[i].filename << ":"
+                      << frames[i].line << ":"
+                      << frames[i].column << std::endl;
+        }
+
+        print_variables(ctx, (int)frames.size());
+
+        std::cout << "\n>>> Step Out (from depth " << frames.size() << ")..." << std::endl;
+
+        debugger.ClearBreakpoints();
+
+        debugger.StepOut((int)frames.size());
+    }
+
+    debugger.Resume();
+
+    debugger.WaitUntilPaused();
+
+    {
+        auto frames = debugger.GetStackFrames();
+
+        std::cout << "\n=== STEP OUT: NOW IN main() ===" << std::endl;
+        std::cout << "Stack frames (" << frames.size() << " total):" << std::endl;
+
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            std::cout << "  #" << i << " "
+                      << frames[i].functionName << "() at "
+                      << frames[i].filename << ":"
+                      << frames[i].line << ":"
+                      << frames[i].column << std::endl;
+        }
+
+        print_variables(ctx, (int)frames.size());
+    }
+
+    debugger.ClearBreakpoints();
+
+    debugger.Resume();
+
+    t5.join();
+
     // ---- cleanup ----
 
     std::cout << "\n========== ALL DONE ==========" << std::endl;

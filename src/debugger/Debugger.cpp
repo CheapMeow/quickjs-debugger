@@ -139,3 +139,89 @@ bool Debugger::IsExceptionPauseEnabled() const
 {
     return m_pauseOnException.load();
 }
+
+void Debugger::StepInto(const std::string& curFile, int curLine, uint32_t curPc, int frameDepth)
+{
+    std::lock_guard<std::mutex> lock(m_stepMutex);
+
+    m_stepFile = curFile;
+    m_stepLine = curLine;
+    m_stepPc = curPc;
+    m_stepDepth.store(frameDepth);
+    m_stepMode.store(static_cast<int>(StepMode::StepInto));
+}
+
+void Debugger::StepOver(const std::string& curFile, int curLine, uint32_t curPc, int frameDepth)
+{
+    std::lock_guard<std::mutex> lock(m_stepMutex);
+
+    m_stepFile = curFile;
+    m_stepLine = curLine;
+    m_stepPc = curPc;
+    m_stepDepth.store(frameDepth);
+    m_stepMode.store(static_cast<int>(StepMode::StepOver));
+}
+
+void Debugger::StepOut(int frameDepth)
+{
+    std::lock_guard<std::mutex> lock(m_stepMutex);
+
+    m_stepDepth.store(frameDepth);
+    m_stepMode.store(static_cast<int>(StepMode::StepOut));
+}
+
+bool Debugger::ShouldStep(const std::string& filename, int line, uint32_t pc, int frameDepth)
+{
+    int mode = m_stepMode.load();
+
+    if (mode == static_cast<int>(StepMode::None))
+        return false;
+
+    if (mode == static_cast<int>(StepMode::StepInto))
+    {
+        // Pause when PC changes (even within the same line)
+        std::lock_guard<std::mutex> lock(m_stepMutex);
+
+        if (pc != m_stepPc)
+        {
+            m_stepMode.store(static_cast<int>(StepMode::None));
+
+            return true;
+        }
+
+        return false;
+    }
+
+    if (mode == static_cast<int>(StepMode::StepOver))
+    {
+        std::lock_guard<std::mutex> lock(m_stepMutex);
+
+        // Pause when back at same depth (or shallower) at a new PC
+        if (frameDepth <= m_stepDepth.load())
+        {
+            if (pc != m_stepPc)
+            {
+                m_stepMode.store(static_cast<int>(StepMode::None));
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    if (mode == static_cast<int>(StepMode::StepOut))
+    {
+        // Pause when depth decreases (we returned from current function)
+        if (frameDepth < m_stepDepth.load())
+        {
+            m_stepMode.store(static_cast<int>(StepMode::None));
+
+            return true;
+        }
+
+        return false;
+    }
+
+    return false;
+}
