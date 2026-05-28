@@ -15,6 +15,12 @@ struct StackFrame
     uint32_t pc = 0;
 };
 
+struct Breakpoint
+{
+    std::string filename;
+    int line;
+};
+
 class Debugger
 {
 public:
@@ -30,6 +36,22 @@ public:
 
     StackFrame GetCurrentFrame() const;
 
+    void AddBreakpoint(const std::string& filename, int line);
+
+    void RemoveBreakpoint(const std::string& filename, int line);
+
+    void ClearBreakpoints();
+
+    bool ShouldBreak(const std::string& filename, int line) const;
+
+    bool IsPaused() const;
+
+    void WaitUntilPaused();
+
+    void SetExceptionPauseEnabled(bool enabled);
+
+    bool IsExceptionPauseEnabled() const;
+
 private:
     std::atomic<bool> m_pauseRequested{false};
 
@@ -40,4 +62,8 @@ private:
     bool m_paused = false;
 
     std::vector<StackFrame> m_stackFrames;
+
+    std::vector<Breakpoint> m_breakpoints;
+
+    std::atomic<bool> m_pauseOnException{false};
 };

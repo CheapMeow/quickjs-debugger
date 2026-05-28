@@ -10,15 +10,8 @@ extern "C"
 
 static JSContext* g_ctx = nullptr;
 
-static int interrupt_handler(JSRuntime* rt, void* opaque)
+static void collect_and_suspend(Debugger* debugger)
 {
-    auto* debugger = static_cast<Debugger*>(opaque);
-
-    if (!debugger->ShouldPause())
-    {
-        return 0;
-    }
-
     JSDebugFrame raw[256];
     int count = JS_GetStackFrames(g_ctx, raw, 256);
 
@@ -45,8 +38,47 @@ static int interrupt_handler(JSRuntime* rt, void* opaque)
     }
 
     debugger->SuspendVM(frames);
+}
+
+static int interrupt_handler(JSRuntime* rt, void* opaque)
+{
+    auto* debugger = static_cast<Debugger*>(opaque);
+
+    bool shouldPause = debugger->ShouldPause();
+
+    if (!shouldPause)
+    {
+        JSDebugLocation rawLoc = {};
+
+        if (JS_GetCurrentLocation(g_ctx, &rawLoc))
+        {
+            const char* filename = JS_AtomToCString(g_ctx, rawLoc.filename);
+
+            if (filename)
+            {
+                shouldPause = debugger->ShouldBreak(filename, rawLoc.line);
+
+                JS_FreeCString(g_ctx, filename);
+            }
+        }
+    }
+
+    if (!shouldPause)
+        return 0;
+
+    collect_and_suspend(debugger);
 
     return 0;
+}
+
+static void exception_handler(JSContext* ctx, void* opaque)
+{
+    auto* debugger = static_cast<Debugger*>(opaque);
+
+    if (!debugger->IsExceptionPauseEnabled())
+        return;
+
+    collect_and_suspend(debugger);
 }
 
 void InstallQuickJSDebugger(JSRuntime* rt, JSContext* ctx, Debugger* debugger)
@@ -54,4 +86,6 @@ void InstallQuickJSDebugger(JSRuntime* rt, JSContext* ctx, Debugger* debugger)
     g_ctx = ctx;
 
     JS_SetInterruptHandler(rt, interrupt_handler, debugger);
+
+    JS_SetExceptionHandler(rt, exception_handler, debugger);
 }

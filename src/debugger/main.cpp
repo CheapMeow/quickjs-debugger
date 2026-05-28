@@ -15,13 +15,29 @@ static JSValue Eval(JSContext* ctx, const char* code, const char* filename)
     return JS_Eval(ctx, code, strlen(code), filename, JS_EVAL_TYPE_GLOBAL);
 }
 
+static void dump_error(JSContext* ctx)
+{
+    JSValue exception = JS_GetException(ctx);
+
+    const char* err = JS_ToCString(ctx, exception);
+
+    if (err)
+    {
+        std::cout << "Uncaught: " << err << std::endl;
+
+        JS_FreeCString(ctx, err);
+    }
+
+    JS_FreeValue(ctx, exception);
+}
+
 int main()
 {
     JSRuntime* rt = JS_NewRuntime();
 
     if (!rt)
     {
-        std::cout << "Failed to create runtime\n";
+        std::cout << "Failed to create runtime" << std::endl;
 
         return -1;
     }
@@ -30,7 +46,7 @@ int main()
 
     if (!ctx)
     {
-        std::cout << "Failed to create context\n";
+        std::cout << "Failed to create context" << std::endl;
 
         JS_FreeRuntime(rt);
 
@@ -41,75 +57,159 @@ int main()
 
     InstallQuickJSDebugger(rt, ctx, &debugger);
 
-    std::thread jsThread([&]() {
+    // ---- Phase 1.3: breakpoint demo ----
+
+    std::cout << "\n========== PHASE 1.3: BREAKPOINT ==========" << std::endl;
+
+    debugger.AddBreakpoint("loop.js", 6);
+
+    std::thread t1([&]() {
         const char* script = R"(
-
-function foo()
+function run()
 {
-    while (true)
-    {
-        let x = Math.random();
-    }
+    let n = 0;
+    while (n < 5000000)
+        n = n + 1;
 }
-
-function bar()
-{
-    foo();
-}
-
-bar();
-
+run();
 )";
-
-        JSValue result = Eval(ctx, script, "test.js");
+        JSValue result = Eval(ctx, script, "loop.js");
 
         if (JS_IsException(result))
-        {
-            JSValue exception = JS_GetException(ctx);
-
-            const char* err = JS_ToCString(ctx, exception);
-
-            if (err)
-            {
-                std::cout << err << "\n";
-
-                JS_FreeCString(ctx, err);
-            }
-
-            JS_FreeValue(ctx, exception);
-        }
+            dump_error(ctx);
 
         JS_FreeValue(ctx, result);
     });
 
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::cout << "Waiting for breakpoint..." << std::endl;
 
-    std::cout << "\nRequesting pause...\n";
+    debugger.WaitUntilPaused();
 
-    debugger.RequestPause();
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    auto frames = debugger.GetStackFrames();
-
-    std::cout << "\n=== STACK FRAMES (" << frames.size() << " total) ===\n";
-
-    for (size_t i = 0; i < frames.size(); i++)
     {
-        std::cout << "#" << i << " "
-                  << frames[i].functionName << "() at "
-                  << frames[i].filename << ":"
-                  << frames[i].line << ":"
-                  << frames[i].column << "\n";
+        auto frames = debugger.GetStackFrames();
+
+        std::cout << "\n=== BREAKPOINT HIT ===" << std::endl;
+        std::cout << "Stack frames (" << frames.size() << " total):" << std::endl;
+
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            std::cout << "  #" << i << " "
+                      << frames[i].functionName << "() at "
+                      << frames[i].filename << ":"
+                      << frames[i].line << ":"
+                      << frames[i].column << std::endl;
+        }
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    debugger.ClearBreakpoints();
 
     std::cout << "\nResuming VM..." << std::endl;
 
     debugger.Resume();
 
-    jsThread.join();
+    t1.join();
+
+    // ---- manual pause demo ----
+
+    std::cout << "\n========== MANUAL PAUSE ==========" << std::endl;
+
+    std::thread t2([&]() {
+        const char* script = R"(
+function run()
+{
+    let n = 0;
+    while (n < 5000000)
+        n = n + 1;
+}
+run();
+)";
+        JSValue result = Eval(ctx, script, "loop2.js");
+
+        if (JS_IsException(result))
+            dump_error(ctx);
+
+        JS_FreeValue(ctx, result);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    debugger.RequestPause();
+
+    debugger.WaitUntilPaused();
+
+    {
+        auto frames = debugger.GetStackFrames();
+
+        std::cout << "\n=== MANUAL PAUSE ===" << std::endl;
+        std::cout << "Stack frames (" << frames.size() << " total):" << std::endl;
+
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            std::cout << "  #" << i << " "
+                      << frames[i].functionName << "() at "
+                      << frames[i].filename << ":"
+                      << frames[i].line << ":"
+                      << frames[i].column << std::endl;
+        }
+    }
+
+    debugger.Resume();
+
+    t2.join();
+
+    // ---- Phase 1.4: exception pause demo ----
+
+    std::cout << "\n========== PHASE 1.4: EXCEPTION PAUSE ==========" << std::endl;
+
+    debugger.SetExceptionPauseEnabled(true);
+
+    std::thread t3([&]() {
+        const char* script = R"(
+function baz()
+{
+    throw new Error("test exception from baz");
+}
+function bar()
+{
+    baz();
+}
+bar();
+)";
+        JSValue result = Eval(ctx, script, "exception_test.js");
+
+        if (JS_IsException(result))
+            dump_error(ctx);
+
+        JS_FreeValue(ctx, result);
+    });
+
+    std::cout << "Waiting for exception..." << std::endl;
+
+    debugger.WaitUntilPaused();
+
+    {
+        auto frames = debugger.GetStackFrames();
+
+        std::cout << "\n=== EXCEPTION PAUSED ===" << std::endl;
+        std::cout << "Stack frames (" << frames.size() << " total):" << std::endl;
+
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            std::cout << "  #" << i << " "
+                      << frames[i].functionName << "() at "
+                      << frames[i].filename << ":"
+                      << frames[i].line << ":"
+                      << frames[i].column << std::endl;
+        }
+    }
+
+    std::cout << "\nResuming (exception will propagate)..." << std::endl;
+
+    debugger.Resume();
+
+    t3.join();
+
+    std::cout << "\n========== ALL DONE ==========" << std::endl;
 
     JS_FreeContext(ctx);
 
