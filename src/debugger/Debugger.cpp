@@ -179,17 +179,12 @@ bool Debugger::ShouldStep(const std::string& filename, int line, uint32_t pc, in
 
     if (mode == static_cast<int>(StepMode::StepInto))
     {
-        // Pause when PC changes (even within the same line)
-        std::lock_guard<std::mutex> lock(m_stepMutex);
+        // Pause on the next interrupt.
+        // Using depth check: pause if depth changed (stepped into/out of a call)
+        // OR always pause (for loop iterations where PC stays the same).
+        m_stepMode.store(static_cast<int>(StepMode::None));
 
-        if (pc != m_stepPc)
-        {
-            m_stepMode.store(static_cast<int>(StepMode::None));
-
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     if (mode == static_cast<int>(StepMode::StepOver))
@@ -224,4 +219,29 @@ bool Debugger::ShouldStep(const std::string& filename, int line, uint32_t pc, in
     }
 
     return false;
+}
+
+void Debugger::SignalFinished()
+{
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        m_finished = true;
+    }
+
+    m_cv.notify_all();
+}
+
+bool Debugger::IsFinished() const
+{
+    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(m_mutex));
+
+    return m_finished;
+}
+
+void Debugger::WaitForPauseOrFinish()
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+
+    m_cv.wait(lock, [&]() { return m_paused || m_finished; });
 }

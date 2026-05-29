@@ -56,6 +56,12 @@ public:
 
     void WaitUntilPaused();
 
+    void SignalFinished();
+
+    bool IsFinished() const;
+
+    void WaitForPauseOrFinish();
+
     void SetExceptionPauseEnabled(bool enabled);
 
     bool IsExceptionPauseEnabled() const;
@@ -77,6 +83,8 @@ private:
     std::condition_variable m_cv;
 
     bool m_paused = false;
+
+    bool m_finished = false;
 
     std::vector<StackFrame> m_stackFrames;
 

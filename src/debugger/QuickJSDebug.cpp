@@ -99,6 +99,9 @@ void InstallQuickJSDebugger(JSRuntime* rt, JSContext* ctx, Debugger* debugger)
 
 static std::string value_to_string(JSContext* ctx, JSValueConst val)
 {
+    if (JS_IsUninitialized(val))
+        return "<uninit>";
+
     if (JS_IsUndefined(val))
         return "undefined";
 
