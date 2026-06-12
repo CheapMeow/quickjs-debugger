@@ -33,13 +33,13 @@ void Debugger::SuspendVM(const std::vector<StackFrame>& frames)
 
     m_stackFrames = frames;
 
-    std::cout << "\n=== JS VM PAUSED ===\n";
+    std::cerr << "\n=== JS VM PAUSED ===\n";
 
     if (!m_stackFrames.empty())
     {
         const auto& top = m_stackFrames[0];
 
-        std::cout << "Location: " << top.filename
+        std::cerr << "Location: " << top.filename
                   << ":" << top.line
                   << ":" << top.column
                   << "  [" << top.functionName << "]\n";
@@ -49,7 +49,7 @@ void Debugger::SuspendVM(const std::vector<StackFrame>& frames)
 
     m_cv.wait(lock, [&]() { return !m_paused; });
 
-    std::cout << "\n=== JS VM RESUMED ===\n";
+    std::cerr << "\n=== JS VM RESUMED ===\n";
 }
 
 std::vector<StackFrame> Debugger::GetStackFrames() const
@@ -81,7 +81,7 @@ void Debugger::AddBreakpoint(const std::string& filename, int line)
 
     m_breakpoints.push_back({filename, line});
 
-    std::cout << "Breakpoint set at " << filename << ":" << line << "\n";
+    std::cerr << "Breakpoint set at " << filename << ":" << line << "\n";
 }
 
 void Debugger::RemoveBreakpoint(const std::string& filename, int line)

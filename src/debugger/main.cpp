@@ -1,22 +1,49 @@
 #include "CLIDebugger.h"
+#include "DAPServer.h"
 
+#include <cstring>
 #include <iostream>
 
 int main(int argc, char* argv[])
 {
-    CLIDebugger cli;
+    bool dapMode = false;
+    const char* scriptFile = nullptr;
 
-    if (argc > 1)
+    for (int i = 1; i < argc; i++)
     {
-        if (!cli.LoadScript(argv[1]))
-            return 1;
+        if (std::strcmp(argv[i], "--dap") == 0)
+            dapMode = true;
+        else if (!scriptFile)
+            scriptFile = argv[i];
     }
-    else
+
+    if (dapMode)
     {
-        std::cerr << "Usage: Debugger <script.js>" << std::endl;
+        DAPServer server;
+
+        if (scriptFile)
+        {
+            // Let DAP launch handle loading; store path for later use.
+            // DAP launch request provides the program path.
+        }
+
+        server.Run();
+
+        return 0;
+    }
+
+    // CLI mode
+    if (!scriptFile)
+    {
+        std::cerr << "Usage: Debugger <script.js> [--dap]" << std::endl;
 
         return 1;
     }
+
+    CLIDebugger cli;
+
+    if (!cli.LoadScript(scriptFile))
+        return 1;
 
     cli.Run();
 
